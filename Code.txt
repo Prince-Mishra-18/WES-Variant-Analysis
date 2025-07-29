@@ -1,6 +1,6 @@
 from google.colab import drive
 drive.mount('/content/drive')
-# ✅ Step 1: Create a fresh project folder structure on Google Drive
+# Step 1: Create a fresh project folder structure on Google Drive
 import os
 
 base_dir = "/content/drive/MyDrive/Cancer_WES_Project"
@@ -16,8 +16,8 @@ subdirs = [
 for sub in subdirs:
     os.makedirs(os.path.join(base_dir, sub), exist_ok=True)
 
-print("✅ Project folder structure created successfully.")
-# ✅ Install core bioinformatics tools
+print(" Project folder structure created successfully.")
+# Install core bioinformatics tools
 !apt-get update -qq
 !apt-get install -y -qq fastqc bwa samtools bcftools bedtools
 !wget -q https://github.com/broadinstitute/gatk/releases/download/4.4.0.0/gatk-4.4.0.0.zip
@@ -39,29 +39,29 @@ print("✅ Project folder structure created successfully.")
 # Verify version
 !java -version
 !/opt/gatk/gatk --version
-# ✅ Install SRA Toolkit
+# Install SRA Toolkit
 !apt-get install -y sra-toolkit
 
-# ✅ Confirm installation
+# Confirm installation
 !which prefetch
 !which fasterq-dump
-# ✅ Step: Go to the FASTQ folder
+# Step: Go to the FASTQ folder
 %cd /content/drive/MyDrive/Cancer_WES_Project/raw_fastq
 
-# ✅ Step: Extract FASTQ with 4 threads
+# Step: Extract FASTQ with 4 threads
 !fasterq-dump SRR1952986 -e 4
 
-# ✅ Step: Compress the FASTQ files
+# Step: Compress the FASTQ files
 !gzip SRR1952986_1.fastq
 !gzip SRR1952986_2.fastq
-# ✅ Reinstall FastQC
+# Reinstall FastQC
 !apt-get update -qq
 !apt-get install -y fastqc
 !fastqc --version
-# ✅ Move into the FASTQ folder
+# Move into the FASTQ folder
 %cd /content/drive/MyDrive/Cancer_WES_Project/raw_fastq
 
-# ✅ Run FastQC on both files
+# Run FastQC on both files
 !fastqc SRR1952986_1.fastq.gz SRR1952986_2.fastq.gz
 from google.colab import files
 
@@ -89,26 +89,26 @@ files.download("/content/drive/MyDrive/Cancer_WES_Project/raw_fastq/SRR1952986_2
 
 # Print the first 10 sequence headers
 !grep "^>" /content/reference/GRCh38_no_alt_plus_decoy.fa | head -10
-# ✅ Move to reference folder (just in case)
+# Move to reference folder (just in case)
 %cd /content/reference
 
-# ✅ Create FASTA index
+# Create FASTA index
 !samtools faidx GRCh38_no_alt_plus_decoy.fa
 
-# ✅ Create BWA index
+# Create BWA index
 !bwa index GRCh38_no_alt_plus_decoy.fa
 
 
-# ✅ Install GATK (Genome Analysis Toolkit)
+# Install GATK (Genome Analysis Toolkit)
 !wget -q https://github.com/broadinstitute/gatk/releases/download/4.4.0.0/gatk-4.4.0.0.zip
 !unzip -q gatk-4.4.0.0.zip
 !mv gatk-4.4.0.0 /opt/gatk
 !ln -s /opt/gatk/gatk /usr/local/bin/gatk
 !gatk --version
-# ✅ Create GATK sequence dictionary
+# Create GATK sequence dictionary
 !gatk CreateSequenceDictionary \
    -R GRCh38_no_alt_plus_decoy.fa \
-   -O GRCh38_no_alt_plus_decoy.dict# ✅ Final, clean alignment to local reference
+   -O GRCh38_no_alt_plus_decoy.dict# Final, clean alignment to local reference
 sample_id = "SRR1952986"
 
 fq1 = f"/content/drive/MyDrive/Cancer_WES_Project/raw_fastq/{sample_id}_1.fastq.gz"
@@ -122,22 +122,22 @@ rg_bam = f"{bam_dir}/{sample_id}_RG.bam"
 
 !mkdir -p {bam_dir}
 
-# ✅ Step 1: BWA MEM
+# Step 1: BWA MEM
 !bwa mem -t 2 {ref} {fq1} {fq2} | samtools view -Sb - > {raw_bam}
 
-# ✅ Step 2: Sort
+# Step 2: Sort
 !samtools sort -o {sorted_bam} {raw_bam}
 
-# ✅ Step 3: Add read groups
+# Step 3: Add read groups
 !gatk AddOrReplaceReadGroups \
     -I {sorted_bam} \
     -O {rg_bam} \
     -RGID 1 -RGLB lib1 -RGPL illumina -RGPU unit1 -RGSM {sample_id}
 
-# ✅ Step 4: Index BAM
+# Step 4: Index BAM
 !samtools index {rg_bam}
 
-# ✅ Step 5: Check final BAMs
+#Step 5: Check final BAMs
 !ls -lh {bam_dir}
 vcf_dir = "/content/drive/MyDrive/Cancer_WES_Project/vcf_files"
 bcf_file = f"{vcf_dir}/{sample_id}_raw.bcf"
@@ -151,13 +151,13 @@ vcf_file = f"{vcf_dir}/{sample_id}_raw.vcf"
 
 # List result
 !ls -lh {vcf_dir}
-# ✅ Move to reference folder
+# Move to reference folder
 %cd /content/drive/MyDrive/Cancer_WES_Project/reference
 
-# ✅ Download GENCODE v44 annotation GTF (only chr info needed for csq)
+# Download GENCODE v44 annotation GTF (only chr info needed for csq)
 !wget -c https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz
 
-# ✅ Index the GTF file (required by bcftools csq)
+# Index the GTF file (required by bcftools csq)
 !bcftools index gencode.v44.annotation.gtf.gz
 # Move to a working directory (e.g., ref folder)
 %cd /content/drive/MyDrive/Cancer_WES_Project/reference
@@ -175,26 +175,26 @@ vcf_file = f"{vcf_dir}/{sample_id}_raw.vcf"
 # Update PATH to include best compiled binaries
 import os
 os.environ["PATH"] = os.environ["PATH"] + ":" + os.path.join(os.getcwd(), "../htslib_install/bin")
-# ✅ Move to reference folder
+# Move to reference folder
 %cd /content/drive/MyDrive/Cancer_WES_Project/reference
 
-# ✅ Clean up any broken or double files
+# Clean up any broken or double files
 !rm -f gencode.v44.annotation.gtf.gz*
 !rm -f gencode.v44.annotation.gtf
 
-# ✅ Download fresh, correct GTF file
+# Download fresh, correct GTF file
 !wget -c https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz
 
-# ✅ Decompress just enough to get .gtf (not .gz.gz!)
+# Decompress just enough to get .gtf (not .gz.gz!)
 !gunzip -f gencode.v44.annotation.gtf.gz
 
-# ✅ Recompress it using BGZIP (required for tabix)
+# Recompress it using BGZIP (required for tabix)
 !bgzip -c gencode.v44.annotation.gtf > gencode.v44.annotation.gtf.gz
 
-# ✅ Index using tabix for use with bcftools csq
+# Index using tabix for use with bcftools csq
 !tabix -p gtf gencode.v44.annotation.gtf.gz
 
-# ✅ Confirm output
+# Confirm output
 !ls -lh gencode.v44.annotation.gtf.gz*
 # Step 1: Move into the reference folder
 %cd /content/drive/MyDrive/Cancer_WES_Project/reference
@@ -246,10 +246,10 @@ awk 'BEGIN {OFS="\t"} {
 # Go to reference directory
 %cd /content/drive/MyDrive/Cancer_WES_Project/reference
 
-# ✅ Download the GRCh38 reference genome (~834MB compressed)
+# Download the GRCh38 reference genome (~834MB compressed)
 !wget -O GRCh38_no_alt_plus_decoy.fa.gz "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz"
 
-# ✅ Decompress the FASTA
+# Decompress the FASTA
 !gunzip -f GRCh38_no_alt_plus_decoy.fa.gz
 # Create FASTA index (bcftools needs this!)
 !samtools faidx /content/drive/MyDrive/Cancer_WES_Project/reference/GRCh38_no_alt_plus_decoy.fa
