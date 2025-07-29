@@ -1,0 +1,266 @@
+from google.colab import drive
+drive.mount('/content/drive')
+# ✅ Step 1: Create a fresh project folder structure on Google Drive
+import os
+
+base_dir = "/content/drive/MyDrive/Cancer_WES_Project"
+subdirs = [
+    "raw_fastq",
+    "reference",
+    "bam_files",
+    "annotation",
+    "vcf_files",
+    "results"
+]
+
+for sub in subdirs:
+    os.makedirs(os.path.join(base_dir, sub), exist_ok=True)
+
+print("✅ Project folder structure created successfully.")
+# ✅ Install core bioinformatics tools
+!apt-get update -qq
+!apt-get install -y -qq fastqc bwa samtools bcftools bedtools
+!wget -q https://github.com/broadinstitute/gatk/releases/download/4.4.0.0/gatk-4.4.0.0.zip
+!unzip -q gatk-4.4.0.0.zip
+!mv gatk-4.4.0.0 /opt/gatk
+!chmod +x /opt/gatk/gatk
+!fastqc --version
+!bwa 2>&1 | head -n 1
+!samtools --version | head -n 1
+!/opt/gatk/gatk --version
+!bcftools --version | head -n 1
+# Remove older Java versions if needed
+!sudo apt-get remove openjdk-11-jre-headless -y
+!sudo apt-get update
+
+# Install Java 17
+!sudo apt install openjdk-17-jre-headless -y
+
+# Verify version
+!java -version
+!/opt/gatk/gatk --version
+# ✅ Install SRA Toolkit
+!apt-get install -y sra-toolkit
+
+# ✅ Confirm installation
+!which prefetch
+!which fasterq-dump
+# ✅ Step: Go to the FASTQ folder
+%cd /content/drive/MyDrive/Cancer_WES_Project/raw_fastq
+
+# ✅ Step: Extract FASTQ with 4 threads
+!fasterq-dump SRR1952986 -e 4
+
+# ✅ Step: Compress the FASTQ files
+!gzip SRR1952986_1.fastq
+!gzip SRR1952986_2.fastq
+# ✅ Reinstall FastQC
+!apt-get update -qq
+!apt-get install -y fastqc
+!fastqc --version
+# ✅ Move into the FASTQ folder
+%cd /content/drive/MyDrive/Cancer_WES_Project/raw_fastq
+
+# ✅ Run FastQC on both files
+!fastqc SRR1952986_1.fastq.gz SRR1952986_2.fastq.gz
+from google.colab import files
+
+# Download both reports
+files.download("/content/drive/MyDrive/Cancer_WES_Project/raw_fastq/SRR1952986_1_fastqc.html")
+files.download("/content/drive/MyDrive/Cancer_WES_Project/raw_fastq/SRR1952986_2_fastqc.html")
+# Step 0: Delete old corrupted files (if any)
+!rm -f /content/reference/GRCh38_no_alt_plus_decoy.fa*
+!mkdir -p /content/reference
+%cd /content/reference
+
+# Step 1: Redownload cleanly (~834 MB compressed)
+!wget -O GRCh38_no_alt_plus_decoy.fa.gz "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz"
+
+# Step 2: Decompress (~10–11 GB uncompressed)
+!gunzip -f GRCh38_no_alt_plus_decoy.fa.gz
+
+# Step 3: Confirm proper decompressed size
+!ls -lh /content/reference/GRCh38_no_alt_plus_decoy.fa
+# Count number of lines
+!wc -l /content/reference/GRCh38_no_alt_plus_decoy.fa
+
+# Show how many sequences (chromosomes/contigs) are in the file
+!grep "^>" /content/reference/GRCh38_no_alt_plus_decoy.fa | wc -l
+
+# Print the first 10 sequence headers
+!grep "^>" /content/reference/GRCh38_no_alt_plus_decoy.fa | head -10
+# ✅ Move to reference folder (just in case)
+%cd /content/reference
+
+# ✅ Create FASTA index
+!samtools faidx GRCh38_no_alt_plus_decoy.fa
+
+# ✅ Create BWA index
+!bwa index GRCh38_no_alt_plus_decoy.fa
+
+
+# ✅ Install GATK (Genome Analysis Toolkit)
+!wget -q https://github.com/broadinstitute/gatk/releases/download/4.4.0.0/gatk-4.4.0.0.zip
+!unzip -q gatk-4.4.0.0.zip
+!mv gatk-4.4.0.0 /opt/gatk
+!ln -s /opt/gatk/gatk /usr/local/bin/gatk
+!gatk --version
+# ✅ Create GATK sequence dictionary
+!gatk CreateSequenceDictionary \
+   -R GRCh38_no_alt_plus_decoy.fa \
+   -O GRCh38_no_alt_plus_decoy.dict# ✅ Final, clean alignment to local reference
+sample_id = "SRR1952986"
+
+fq1 = f"/content/drive/MyDrive/Cancer_WES_Project/raw_fastq/{sample_id}_1.fastq.gz"
+fq2 = f"/content/drive/MyDrive/Cancer_WES_Project/raw_fastq/{sample_id}_2.fastq.gz"
+ref = "/content/reference/GRCh38_no_alt_plus_decoy.fa"
+bam_dir = "/content/drive/MyDrive/Cancer_WES_Project/bam_files"
+
+raw_bam = f"{bam_dir}/{sample_id}_raw.bam"
+sorted_bam = f"{bam_dir}/{sample_id}_sorted.bam"
+rg_bam = f"{bam_dir}/{sample_id}_RG.bam"
+
+!mkdir -p {bam_dir}
+
+# ✅ Step 1: BWA MEM
+!bwa mem -t 2 {ref} {fq1} {fq2} | samtools view -Sb - > {raw_bam}
+
+# ✅ Step 2: Sort
+!samtools sort -o {sorted_bam} {raw_bam}
+
+# ✅ Step 3: Add read groups
+!gatk AddOrReplaceReadGroups \
+    -I {sorted_bam} \
+    -O {rg_bam} \
+    -RGID 1 -RGLB lib1 -RGPL illumina -RGPU unit1 -RGSM {sample_id}
+
+# ✅ Step 4: Index BAM
+!samtools index {rg_bam}
+
+# ✅ Step 5: Check final BAMs
+!ls -lh {bam_dir}
+vcf_dir = "/content/drive/MyDrive/Cancer_WES_Project/vcf_files"
+bcf_file = f"{vcf_dir}/{sample_id}_raw.bcf"
+vcf_file = f"{vcf_dir}/{sample_id}_raw.vcf"
+
+# Generate BCF (binary variant file)
+!bcftools mpileup -Ou -f {ref} {rg_bam} | bcftools call -mv -Ob -o {bcf_file}
+
+# Convert BCF to human-readable VCF
+!bcftools view {bcf_file} -Ov -o {vcf_file}
+
+# List result
+!ls -lh {vcf_dir}
+# ✅ Move to reference folder
+%cd /content/drive/MyDrive/Cancer_WES_Project/reference
+
+# ✅ Download GENCODE v44 annotation GTF (only chr info needed for csq)
+!wget -c https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz
+
+# ✅ Index the GTF file (required by bcftools csq)
+!bcftools index gencode.v44.annotation.gtf.gz
+# Move to a working directory (e.g., ref folder)
+%cd /content/drive/MyDrive/Cancer_WES_Project/reference
+
+# Download HTSlib source
+!wget https://github.com/samtools/htslib/releases/download/1.22.1/htslib-1.22.1.tar.bz2
+
+# Extract, build, and install locally
+!tar -xjf htslib-1.22.1.tar.bz2
+%cd htslib-1.22.1
+!./configure --prefix=$PWD/../htslib_install
+!make -j2
+!make install
+
+# Update PATH to include best compiled binaries
+import os
+os.environ["PATH"] = os.environ["PATH"] + ":" + os.path.join(os.getcwd(), "../htslib_install/bin")
+# ✅ Move to reference folder
+%cd /content/drive/MyDrive/Cancer_WES_Project/reference
+
+# ✅ Clean up any broken or double files
+!rm -f gencode.v44.annotation.gtf.gz*
+!rm -f gencode.v44.annotation.gtf
+
+# ✅ Download fresh, correct GTF file
+!wget -c https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gtf.gz
+
+# ✅ Decompress just enough to get .gtf (not .gz.gz!)
+!gunzip -f gencode.v44.annotation.gtf.gz
+
+# ✅ Recompress it using BGZIP (required for tabix)
+!bgzip -c gencode.v44.annotation.gtf > gencode.v44.annotation.gtf.gz
+
+# ✅ Index using tabix for use with bcftools csq
+!tabix -p gtf gencode.v44.annotation.gtf.gz
+
+# ✅ Confirm output
+!ls -lh gencode.v44.annotation.gtf.gz*
+# Step 1: Move into the reference folder
+%cd /content/drive/MyDrive/Cancer_WES_Project/reference
+
+# Step 2: Uncompress GTF
+!gunzip -f gencode.v44.annotation.gtf.gz
+
+# Step 3: Sort the GTF file by chromosome and start position
+!sort -k1,1 -k4,4n gencode.v44.annotation.gtf > gencode.v44.sorted.gtf
+
+# Step 4: Compress the sorted GTF with bgzip
+!bgzip -f gencode.v44.sorted.gtf
+
+# Step 5: Index with tabix (correct preset!)
+!tabix -p gff gencode.v44.sorted.gtf.gz
+# Step 1: Go to reference folder
+%cd /content/drive/MyDrive/Cancer_WES_Project/reference
+
+# Step 2: Download the correct GFF3 file (not GTF!)
+!wget -c https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_44/gencode.v44.annotation.gff3.gz
+
+# Step 3: Sort, compress, and index it
+!gunzip -f gencode.v44.annotation.gff3.gz
+!sort -k1,1 -k4,4n gencode.v44.annotation.gff3 > gencode.v44.sorted.gff3
+!bgzip -f gencode.v44.sorted.gff3
+!tabix -p gff gencode.v44.sorted.gff3.gz
+%%bash
+awk 'BEGIN {OFS="\t"} {
+  if ($3 ~ /exon|CDS|five_prime_UTR|three_prime_UTR|start_codon|stop_codon/) {
+    split($9, attrs, ";");
+    for (i in attrs) {
+      if (attrs[i] ~ /^Parent=/) {
+        parent_val = substr(attrs[i], 8);
+        if (parent_val !~ /^transcript:/) {
+          attrs[i] = "Parent=transcript:" parent_val;
+        }
+      }
+    }
+    $9 = attrs[1];
+    for (i = 2; i in attrs; i++) {
+      $9 = $9 ";" attrs[i];
+    }
+  }
+  print
+}' gencode.v44.annotation.gff3 > fixed2.gff3
+!sort -k1,1 -k4,4n fixed2.gff3 > fixed2.sorted.gff3
+!bgzip -f fixed2.sorted.gff3
+!tabix -p gff fixed2.sorted.gff3.gz
+# Go to reference directory
+%cd /content/drive/MyDrive/Cancer_WES_Project/reference
+
+# ✅ Download the GRCh38 reference genome (~834MB compressed)
+!wget -O GRCh38_no_alt_plus_decoy.fa.gz "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/405/GCF_000001405.40_GRCh38.p14/GRCh38_major_release_seqs_for_alignment_pipelines/GCA_000001405.15_GRCh38_no_alt_plus_hs38d1_analysis_set.fna.gz"
+
+# ✅ Decompress the FASTA
+!gunzip -f GRCh38_no_alt_plus_decoy.fa.gz
+# Create FASTA index (bcftools needs this!)
+!samtools faidx /content/drive/MyDrive/Cancer_WES_Project/reference/GRCh38_no_alt_plus_decoy.fa
+!bcftools csq \
+  -f /content/drive/MyDrive/Cancer_WES_Project/reference/GRCh38_no_alt_plus_decoy.fa \
+  -g /content/drive/MyDrive/Cancer_WES_Project/reference/fixed2.sorted.gff3.gz \
+  -o /content/drive/MyDrive/Cancer_WES_Project/vcf_files/SRR1952986_annotated.vcf \
+  -Ov \
+  /content/drive/MyDrive/Cancer_WES_Project/vcf_files/SRR1952986_raw.vcf
+!bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t[%INFO/BCSQ]\n' /content/drive/MyDrive/Cancer_WES_Project/vcf_files/SRR1952986_annotated.vcf > /content/coding_variants.tsv
+!echo -e "CHROM\tPOS\tREF\tALT\tBCSQ" | cat - /content/coding_variants.tsv > /content/coding_variants_with_header.tsv
+!tr '\t' ',' < /content/coding_variants_with_header.tsv > /content/coding_variants.csv
+from google.colab import files
+files.download('/content/coding_variants.csv')
