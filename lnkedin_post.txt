@@ -1,0 +1,40 @@
+🚀 Built an End-to-End Variant Calling Pipeline for Whole Exome Sequencing (WES) 🧬
+
+Over the past few days, I worked on a hands-on bioinformatics project that mimics the real-world pipelines used in research labs and biotech companies.
+
+Using real sequencing data from the NCBI SRA (SRR1952986), I built a complete WES analysis pipeline — from raw FASTQ files to identifying and prioritizing clinically relevant variants.
+
+🔧 Pipeline Highlights:
+
+📥 Downloaded WES data from SRA
+
+✅ Quality checked reads using FastQC
+
+🧬 Aligned to the human genome (hg38) using BWA-MEM
+
+🔄 Sorted and indexed BAM files with SAMtools
+
+🧪 Detected variants using GATK HaplotypeCaller
+
+📊 Annotated SNVs with ANNOVAR using databases like refGene, dbNSFP, and ClinVar
+
+🎯 Prioritized exonic, protein-altering variants with known or predicted clinical significance
+
+📁 The entire project is organized for clarity and reproducibility — just like in real biotech workflows.
+
+✅ What I learned:
+
+Real-world genomics pipeline setup
+
+Working with command-line tools & public data repositories
+
+Variant interpretation based on biological & clinical relevance
+
+🧠 This project strengthened my understanding of both the technical and analytical sides of NGS data analysis — a skill set that’s in demand in clinical genomics, precision medicine, and research.
+
+🔗 [Insert GitHub or Colab link if available]
+
+If you're in genomics, bioinformatics, or hiring in this space — I’d love to connect and hear about how such pipelines are applied in your work!
+
+#bioinformatics #NGS #genomics #variantcalling #WES #GATK #ANNOVAR #computationalbiology #lifesciences #pipeline #hiring
+
